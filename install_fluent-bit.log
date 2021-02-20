@@ -1,0 +1,12 @@
+namespace/logging created
+NAME: fluent-bit
+LAST DEPLOYED: Sun Feb 21 03:24:48 2021
+NAMESPACE: logging
+STATUS: deployed
+REVISION: 1
+NOTES:
+Get Fluent Bit build information by running these commands:
+
+export POD_NAME=$(kubectl get pods --namespace logging -l "app.kubernetes.io/name=fluent-bit,app.kubernetes.io/instance=fluent-bit" -o jsonpath="{.items[0].metadata.name}")
+echo "curl http://127.0.0.1:2020 for Fluent Bit build information"
+kubectl --namespace logging port-forward $POD_NAME 2020:2020
