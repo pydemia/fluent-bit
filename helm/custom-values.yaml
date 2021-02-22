@@ -1,0 +1,315 @@
+# https://raw.githubusercontent.com/fluent/helm-charts/master/charts/fluent-bit/values.yaml
+# https://raw.githubusercontent.com/fluent/fluent-bit-kubernetes-logging/master/output/elasticsearch/fluent-bit-configmap.yaml
+# Merged helm version ConfigMap with `yaml` version ConfigMap
+
+
+# kind -- DaemonSet or Deployment
+kind: DaemonSet
+
+# replicaCount -- Only applicable if kind=Deployment
+replicaCount: 1
+
+image:
+  repository: fluent/fluent-bit
+  pullPolicy: Always
+  # tag:
+
+testFramework:
+  image:
+    repository: busybox
+    pullPolicy: Always
+    tag: latest
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name:
+
+rbac:
+  create: true
+
+podSecurityPolicy:
+  create: false
+
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+dnsConfig: {}
+  # nameservers:
+  #   - 1.2.3.4
+  # searches:
+  #   - ns1.svc.cluster-domain.example
+  #   - my.dns.search.suffix
+  # options:
+  #   - name: ndots
+#     value: "2"
+#   - name: edns0
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 2020
+  labels:
+    {}
+  annotations:
+    {}
+    # prometheus.io/path: "/api/v1/metrics/prometheus"
+    # prometheus.io/port: "2020"
+    # prometheus.io/scrape: "true"
+
+serviceMonitor:
+  enabled: false
+  # namespace: monitoring
+  # interval: 10s
+  # scrapeTimeout: 10s
+  # selector:
+  #  prometheus: my-prometheus
+
+prometheusRule:
+  enabled: false
+  # namespace: ""
+  # additionnalLabels: {}
+  # rules:
+  # - alert: NoOutputBytesProcessed
+  #   expr: rate(fluentbit_output_proc_bytes_total[5m]) == 0
+  #   annotations:
+  #     message: |
+  #       Fluent Bit instance {{ $labels.instance }}'s output plugin {{ $labels.name }} has not processed any
+  #       bytes for at least 15 minutes.
+  #     summary: No Output Bytes Processed
+  #   for: 15m
+  #   labels:
+  #     severity: critical
+
+dashboards:
+  enabled: false
+  labelKey: grafana_dashboard
+  annotations: {}
+
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+
+resources:
+  {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+podAnnotations: {}
+
+podLabels: {}
+
+priorityClassName: ""
+
+# env: []
+env:
+  - name: FLUENT_ELASTICSEARCH_HOST
+    value: "elasticsearch"
+  - name: FLUENT_ELASTICSEARCH_PORT
+    value: "9200"
+  # - name: ELASTICSEARCH_USERNAME
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: es-cred
+  #       key: ELASTICSEARCH_USERNAME
+  # - name: ELASTICSEARCH_PASSWORD
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: es-cred
+  #       key: ELASTICSEARCH_PASSWORD
+
+# envFrom: []
+envFrom:
+  - secretRef:
+      name: es-cred
+
+extraPorts: []
+#   - port: 5170
+#     containerPort: 5170
+#     protocol: TCP
+#     name: tcp
+
+extraVolumes: []
+
+extraVolumeMounts: []
+
+updateStrategy: {}
+  # type: RollingUpdate
+  # rollingUpdate:
+  #   maxUnavailable: 1
+
+# Make use of a pre-defined configmap instead of the one templated here
+existingConfigMap: ""
+
+networkPolicy:
+  enabled: false
+  # ingress:
+  #   from: []
+
+luaScripts: {}
+
+## https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/configuration-file
+config:
+  service: |
+    [SERVICE]
+        Flush 1
+        Daemon Off
+        Log_Level info
+        Parsers_File parsers.conf
+        Parsers_File custom_parsers.conf
+        HTTP_Server On
+        HTTP_Listen 0.0.0.0
+        HTTP_Port {{ .Values.service.port }}
+
+  ## https://docs.fluentbit.io/manual/pipeline/inputs
+  inputs: |
+    [INPUT]
+        Name tail
+        Path /var/log/containers/*.log
+        Parser docker
+        Tag kube.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+    
+    # [INPUT]
+    #     Name              tail-original
+    #     Tag               kube.*
+    #     Path              /var/log/containers/*.log
+    #     Parser            docker
+    #     DB                /var/log/flb_kube.db
+    #     Mem_Buf_Limit     5MB
+    #     Skip_Long_Lines   On
+    #     Refresh_Interval  10
+
+    [INPUT]
+        Name systemd
+        Tag host.*
+        Systemd_Filter _SYSTEMD_UNIT=kubelet.service
+        Read_From_Tail On
+
+  ## https://docs.fluentbit.io/manual/pipeline/filters
+  filters: |
+    [FILTER]
+        Name kubernetes
+        Match kube.*
+        Merge_Log On
+        Keep_Log Off
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude On
+    
+    [FILTER]
+        Name                kubernetes-original
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Key       log_processed
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude Off
+
+  ## https://docs.fluentbit.io/manual/pipeline/outputs
+  outputs: |
+    [OUTPUT]
+        Name            es
+        Match           *
+        Host            ${FLUENT_ELASTICSEARCH_HOST}
+        Port            ${FLUENT_ELASTICSEARCH_PORT}
+        HTTP_User       ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd     ${ELASTICSEARCH_PASSWORD}
+        Logstash_Format On
+        Logstash_Prefix node
+        Replace_Dots    On
+        Retry_Limit     False
+
+  ## https://docs.fluentbit.io/manual/pipeline/parsers
+  customParsers: |
+    [PARSER]
+        Name docker_no_time
+        Format json
+        Time_Keep Off
+        Time_Key time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+    
+    [PARSER]
+        Name   apache
+        Format regex
+        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+    
+    [PARSER]
+        Name   apache2
+        Format regex
+        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^ ]*) +\S*)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+    
+    [PARSER]
+        Name   apache_error
+        Format regex
+        Regex  ^\[[^ ]* (?<time>[^\]]*)\] \[(?<level>[^\]]*)\](?: \[pid (?<pid>[^\]]*)\])?( \[client (?<client>[^\]]*)\])? (?<message>.*)$
+    
+    [PARSER]
+        Name   nginx
+        Format regex
+        Regex ^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+    
+    [PARSER]
+        Name   json
+        Format json
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+    
+    [PARSER]
+        Name        docker
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+    
+    [PARSER]
+        # http://rubular.com/r/tjUt3Awgg4
+        Name cri
+        Format regex
+        Regex ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<message>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+    
+    [PARSER]
+        Name        syslog
+        Format      regex
+        Regex       ^\<(?<pri>[0-9]+)\>(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
+        Time_Key    time
+        Time_Format %b %d %H:%M:%S

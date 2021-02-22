@@ -5,6 +5,7 @@ https://docs.fluentbit.io/manual/
 ## Installation
 
 ```bash
+mkdir -p ./install
 cd install
 kubectl create namespace logging
 
@@ -22,15 +23,6 @@ curl -fsSL -O https://raw.githubusercontent.com/fluent/fluent-bit-kubernetes-log
 curl -fsSL -O https://raw.githubusercontent.com/fluent/fluent-bit-kubernetes-logging/master/output/elasticsearch/fluent-bit-ds.yaml && \
   kubectl create -f fluent-bit-ds.yaml
 
-kubectl delete -f ./install
-```
-
-```bash
-helm repo add fluent https://fluent.github.io/helm-charts
-
-kubectl create namespace logging
-helm install fluent-bit fluent/fluent-bit \
-  --namespace logging > install_fluent-bit.log > 2>&1
-```
-
+cd ..
+# kubectl delete -f ./install
 ```
