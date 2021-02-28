@@ -1,9 +1,9 @@
 Release "fluent-bit" has been upgraded. Happy Helming!
 NAME: fluent-bit
-LAST DEPLOYED: Fri Feb 26 01:35:25 2021
+LAST DEPLOYED: Mon Mar  1 05:46:09 2021
 NAMESPACE: logging
 STATUS: deployed
-REVISION: 24
+REVISION: 91
 NOTES:
 Get Fluent Bit build information by running these commands:
 
