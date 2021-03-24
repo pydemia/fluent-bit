@@ -177,7 +177,7 @@ extraVolumes:
       path: elk-rest-crt.pem
     - key: tls.key
       path: elk-rest-key.pem
-    - key: ca.crt
+    - key: tls.crt
       path: elk-rest-root-ca.pem
 # - name: elasticsearch-admin-certs
 #   secret:
@@ -232,218 +232,213 @@ config:
 
   ## https://docs.fluentbit.io/manual/pipeline/inputs
   inputs: |
-    [INPUT]
-        Name               tail
-        Path               /var/log/containers/*.log
-        Parser             docker
-        Tag                kube.*
-        # Multiline          On
-        # Parser_Firstline   spring-multiline
-        Docker_Mode        On
-        Docker_Mode_Parser spring-multiline
+      # spring-multiline: airuntime,aiip-runtime
+      [INPUT]
+          Name               tail
+          Tag                kube.aiip-runtime.*
+          Path               /var/log/containers/*_airuntime_*.log,/var/log/containers/*_aiip-runtime_*.log
+          Parser             docker
+          Docker_Mode        On
+          Docker_Mode_Parser spring-multiline
+      
+      # runtime-managed-namespaces
+      [INPUT]
+          Name               tail
+          Tag                kube.runtime-*
+          Path               /var/log/containers/*_runtime-*.log
+          Parser             docker
+          Mem_Buf_Limit      5MB
+          Skip_Long_Lines    Off
 
-    # [INPUT]
-    #     Name               tail
-    #     Path               /var/log/containers/*.log
-    #     Docker_Mode        On
-    #     Docker_Mode_Flush  5
-    #     Docker_Mode_Parser read_firstline
-    #     Tag                kube.*
-    #     Mem_Buf_Limit      5MB
-    #     Skip_Long_Lines    Off
-    #     Multiline          On
-    #     Parser_Firstline   spring-multiline
-
-        # Parser_1           spring-multiline
-    
-    # [INPUT]
-    #     Name               tail
-    #     Path               /var/log/containers/*.log
-    #     Parser             docker
-    #     Tag                kube.*
-    #     Mem_Buf_Limit      5MB
-    #     Skip_Long_Lines    Off
+      # default
+      [INPUT]
+          Name               tail
+          Tag                kube.*
+          Path               /var/log/containers/*.log
+          Exclude_Path       /var/log/containers/*_airuntime_*.log,/var/log/containers/*_aiip-runtime_*.log,/var/log/containers/*_runtime-*.log
+          Parser             docker
+          Mem_Buf_Limit      5MB
+          Skip_Long_Lines    Off
+          # Tag_Regex          (?<pod_name>[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)_(?<namespace_name>[^_]+)_(?<container_name>.+)-(?<docker_id>[a-z0-9]{64})\.log$
 
   ## https://docs.fluentbit.io/manual/pipeline/filters
   ## https://docs.fluentbit.io/manual/v/1.0/filter/kubernetes
   filters: |
-    [FILTER]
-        Name                kubernetes
-        Match               kube.*
-        Kube_URL            https://kubernetes.default.svc:443
-        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
-        Kube_Tag_Prefix     kube.var.log.containers.
-        # Merge_Log is not active when Docker_Mode is On cause Input is not JSON Map
-        Merge_Log           On
-        Merge_Log_Key       log_processed
-        Merge_Log_Trim      On
-        K8S-Logging.Parser  On
-        K8S-Logging.Exclude Off
-        Labels              On
-        Annotations         On
+      [FILTER]
+          Name                kubernetes
+          Match               kube.*
+          Kube_URL            https://kubernetes.default.svc:443
+          Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+          Kube_Tag_Prefix     kube.var.log.containers.
+          # Merge_Log is not active when Docker_Mode is On cause Input is not JSON Map
+          Merge_Log           On
+          Merge_Log_Key       log_processed
+          Merge_Log_Trim      On
+          K8S-Logging.Parser  On
+          K8S-Logging.Exclude Off
+          Labels              On
+          Annotations         On
 
-    # [FILTER]
-    #     Name                kubernetes
-    #     Match               kube.airuntime*
-    #     Kube_URL            https://kubernetes.default.svc:443
-    #     Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-    #     Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
-    #     Kube_Tag_Prefix     kube.var.log.containers.
-    #     Merge_Log           On
-    #     Merge_Log_Key       log_processed
-    #     K8S-Logging.Parser  On
-    #     K8S-Logging.Exclude On
-    #     Labels              On
-    #     Annotations         On
-    #     Regex_Parser        spring-multiline
+      # [FILTER]
+      #     Name                kubernetes
+      #     Match               kube.airuntime*
+      #     Kube_URL            https://kubernetes.default.svc:443
+      #     Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      #     Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+      #     Kube_Tag_Prefix     kube.var.log.containers.
+      #     Merge_Log           On
+      #     Merge_Log_Key       log_processed
+      #     K8S-Logging.Parser  On
+      #     K8S-Logging.Exclude On
+      #     Labels              On
+      #     Annotations         On
+      #     Regex_Parser        spring-multiline
 
   ## https://docs.fluentbit.io/manual/pipeline/outputs
   outputs: |
-    [OUTPUT]
-        Name                es
-        Match               *
-        Host                ${FLUENT_ELASTICSEARCH_HOST}
-        Port                ${FLUENT_ELASTICSEARCH_PORT}
-        Index               fluent-bit
-        Type                _doc
-        Logstash_Format     On
-        Logstash_Prefix     cluster
-        Logstash_DateFormat %Y.%m.%d
-        Time_Key            @timestamp
-        Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        Replace_Dots        On
-        Retry_Limit         False
-        tls                 On
-        tls.verify          On
-        tls.debug           1
-        tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
-        tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
-        tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
-        
-        # Logstash_Prefix_Key $record['kubernetes']['namespace_name']
-        # Logstash_Prefix_Key $kubernetes['labels']['app']
-
-    # [OUTPUT]
-    #     Name                es-airuntime
-    #     Match               kube.airuntime*
-    #     Host                ${FLUENT_ELASTICSEARCH_HOST}
-    #     Port                ${FLUENT_ELASTICSEARCH_PORT}
-    #     Index               fluent-bit
-    #     Type                _doc
-    #     Logstash_Format     On
-    #     Logstash_Prefix     airuntime
-    #     Logstash_DateFormat %Y.%m.%d
-    #     Time_Key            @timestamp
-    #     Time_Key_Format     %Y-%m-%dT%H:%M:%S
-    #     Replace_Dots        On
-    #     Retry_Limit         False
-    #     tls                 on
-    #     tls.verify          on
-    #     tls.debug           1
-    #     tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
-    #     tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
-    #     tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
-    
-    # [OUTPUT]
-    #     Name                es-tekton
-    #     Match               kube.tekton*
-    #     Host                ${FLUENT_ELASTICSEARCH_HOST}
-    #     Port                ${FLUENT_ELASTICSEARCH_PORT}
-    #     Index               fluent-bit
-    #     Type                _doc
-    #     Logstash_Format     On
-    #     Logstash_Prefix     tekton
-    #     # Logstash_Prefix_Key $kubernetes['labels']['app']
-    #     Logstash_DateFormat %Y.%m.%d
-    #     Time_Key            @timestamp
-    #     Time_Key_Format     %Y-%m-%dT%H:%M:%S
-    #     Replace_Dots        On
-    #     Retry_Limit         False
-    #     tls                 on
-    #     tls.verify          on
-    #     tls.debug           1
-    #     tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
-    #     tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
-    #     tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
-
+      [OUTPUT]
+          Name                es
+          Match               kube.aiip-runtime.*
+          Host                ${FLUENT_ELASTICSEARCH_HOST}
+          Port                ${FLUENT_ELASTICSEARCH_PORT}
+          Index               fluent-bit
+          Type                _doc
+          Logstash_Format     On
+          Logstash_Prefix     aiip-runtime
+          Logstash_DateFormat %Y.%m.%d
+          Time_Key            @timestamp
+          Time_Key_Format     %Y-%m-%dT%H:%M:%S
+          Replace_Dots        On
+          Retry_Limit         False
+          tls                 on
+          tls.verify          on
+          tls.debug           1
+          tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
+          tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
+          tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
+      
+      [OUTPUT]
+          Name                es
+          Match               kube.runtime-*
+          Host                ${FLUENT_ELASTICSEARCH_HOST}
+          Port                ${FLUENT_ELASTICSEARCH_PORT}
+          Index               fluent-bit
+          Type                _doc
+          Logstash_Format     On
+          Logstash_Prefix     runtime-endpoints
+          Logstash_DateFormat %Y.%m.%d
+          Time_Key            @timestamp
+          Time_Key_Format     %Y-%m-%dT%H:%M:%S
+          Replace_Dots        On
+          Retry_Limit         False
+          tls                 on
+          tls.verify          on
+          tls.debug           1
+          tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
+          tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
+          tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
+      
+      [OUTPUT]
+          Name                es
+          Match_Regex         kube\.(?!airuntime|aiip-runtime|runtime-).*
+          Host                ${FLUENT_ELASTICSEARCH_HOST}
+          Port                ${FLUENT_ELASTICSEARCH_PORT}
+          Index               fluent-bit
+          Type                _doc
+          Logstash_Format     On
+          Logstash_Prefix     cluster
+          Logstash_DateFormat %Y.%m.%d
+          Time_Key            @timestamp
+          Time_Key_Format     %Y-%m-%dT%H:%M:%S
+          Replace_Dots        On
+          Retry_Limit         False
+          tls                 On
+          tls.verify          On
+          tls.debug           1
+          tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
+          tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
+          tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
+          
+          # Logstash_Prefix_Key $record['kubernetes']['namespace_name']
+          # Logstash_Prefix_Key $kubernetes['labels']['app']
 
   ## https://docs.fluentbit.io/manual/pipeline/parsers
   ## https://docs.fluentbit.io/manual/v/1.0/parser/regular_expression
   customParsers: |
-    [PARSER]
-        Name    spring-multiline
-        Format  regex
-        # Regex   /(?<time>\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}) (?<log>{"log":".*"),(?<stream>{"stream":".*"),(?<time>{"time":".*")/
-        # Regex   /(?<time>\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}) (?<log>.*)/
-        # Regex   (?<log>{"log":"\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}.*)$
-        Regex   (?<time>\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}) (?<log>.*)
-        Time_Format %Y-%m-%d %H:%M:%S
-        Time_Key time
+      [PARSER]
+          Name    spring-multiline
+          Format  regex
+          # Regex   /(?<time>\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}) (?<log>{"log":".*"),(?<stream>{"stream":".*"),(?<time>{"time":".*")/
+          # Regex   /(?<time>\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}) (?<log>.*)/
+          # Regex   (?<log>{"log":"\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}.*)$
+          Regex   (?<time>\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}) (?<log>.*)
+          Time_Format %Y-%m-%d %H:%M:%S
+          Time_Key time
 
-    [PARSER]
-        Name    nested-multilines
-        Format  regex
-        Regex   {"log":"(?<log>.*)","stream":"(?<stream>.*)","time":"(?<time>.*)"}$
-        Time_Key time
-        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+      [PARSER]
+          Name    nested-multilines
+          Format  regex
+          Regex   {"log":"(?<log>.*)","stream":"(?<stream>.*)","time":"(?<time>.*)"}$
+          Time_Key time
+          Time_Format %Y-%m-%dT%H:%M:%S.%L%z
 
-    [PARSER]
-        Name   nested-json
-        Format json
-        Time_Key time
-        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+      [PARSER]
+          Name   nested-json
+          Format json
+          Time_Key time
+          Time_Format %Y-%m-%dT%H:%M:%S.%L%z
 
-    # [PARSER]
-    #     Name   apache
-    #     Format regex
-    #     Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
-    #     Time_Key time
-    #     Time_Format %d/%b/%Y:%H:%M:%S %z
-    
-    # [PARSER]
-    #     Name   apache2
-    #     Format regex
-    #     Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^ ]*) +\S*)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
-    #     Time_Key time
-    #     Time_Format %d/%b/%Y:%H:%M:%S %z
-    
-    # [PARSER]
-    #     Name   apache_error
-    #     Format regex
-    #     Regex  ^\[[^ ]* (?<time>[^\]]*)\] \[(?<level>[^\]]*)\](?: \[pid (?<pid>[^\]]*)\])?( \[client (?<client>[^\]]*)\])? (?<message>.*)$
-    
-    # [PARSER]
-    #     Name   nginx
-    #     Format regex
-    #     Regex ^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
-    #     Time_Key time
-    #     Time_Format %d/%b/%Y:%H:%M:%S %z
-    
-    # [PARSER]
-    #     Name   json
-    #     Format json
-    #     Time_Key time
-    #     Time_Format %d/%b/%Y:%H:%M:%S %z
-    
-    # [PARSER]
-    #     Name        docker
-    #     Format      json
-    #     Time_Key    time
-    #     Time_Format %Y-%m-%dT%H:%M:%S.%L
-    #     Time_Keep   On
-    
-    # [PARSER]
-    #     # http://rubular.com/r/tjUt3Awgg4
-    #     Name cri
-    #     Format regex
-    #     Regex ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<message>.*)$
-    #     Time_Key    time
-    #     Time_Format %Y-%m-%dT%H:%M:%S.%L%z
-    
-    # [PARSER]
-    #     Name        syslog
-    #     Format      regex
-    #     Regex       ^\<(?<pri>[0-9]+)\>(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
-    #     Time_Key    time
-    #     Time_Format %b %d %H:%M:%S
+      # [PARSER]
+      #     Name   apache
+      #     Format regex
+      #     Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+      #     Time_Key time
+      #     Time_Format %d/%b/%Y:%H:%M:%S %z
+      
+      # [PARSER]
+      #     Name   apache2
+      #     Format regex
+      #     Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^ ]*) +\S*)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+      #     Time_Key time
+      #     Time_Format %d/%b/%Y:%H:%M:%S %z
+      
+      # [PARSER]
+      #     Name   apache_error
+      #     Format regex
+      #     Regex  ^\[[^ ]* (?<time>[^\]]*)\] \[(?<level>[^\]]*)\](?: \[pid (?<pid>[^\]]*)\])?( \[client (?<client>[^\]]*)\])? (?<message>.*)$
+      
+      # [PARSER]
+      #     Name   nginx
+      #     Format regex
+      #     Regex ^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+      #     Time_Key time
+      #     Time_Format %d/%b/%Y:%H:%M:%S %z
+      
+      # [PARSER]
+      #     Name   json
+      #     Format json
+      #     Time_Key time
+      #     Time_Format %d/%b/%Y:%H:%M:%S %z
+      
+      # [PARSER]
+      #     Name        docker
+      #     Format      json
+      #     Time_Key    time
+      #     Time_Format %Y-%m-%dT%H:%M:%S.%L
+      #     Time_Keep   On
+      
+      # [PARSER]
+      #     # http://rubular.com/r/tjUt3Awgg4
+      #     Name cri
+      #     Format regex
+      #     Regex ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<message>.*)$
+      #     Time_Key    time
+      #     Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+      
+      # [PARSER]
+      #     Name        syslog
+      #     Format      regex
+      #     Regex       ^\<(?<pri>[0-9]+)\>(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
+      #     Time_Key    time
+      #     Time_Format %b %d %H:%M:%S
