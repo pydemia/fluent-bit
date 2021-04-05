@@ -5,8 +5,8 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: env-secrets
+  name: es-cred
 type: Opaque
-data:
-  DB_PASSWORD: xxx
-  REDIS_PASSWORD: xxx
+stringData:
+  ELASTICSEARCH_USERNAME: admin
+  ELASTICSEARCH_PASSWORD: admin
