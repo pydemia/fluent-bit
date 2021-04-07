@@ -20,6 +20,24 @@ data:
 EOF
 ```
 
+<!-- ```bash
+k -n elasticsearch get secrets elasticsearch-rest-certs -o jsonpath='{.data.ca\.crt}'|base64 -d > ca.crt
+k -n elasticsearch get secrets elasticsearch-rest-certs -o jsonpath='{.data.tls\.crt}'|base64 -d > tls.crt
+k -n elasticsearch get secrets elasticsearch-rest-certs -o jsonpath='{.data.tls\.key}'|base64 -d > tls.key 
+
+k -n logging get secrets elasticsearch-rest-certs -o jsonpath='{.data.ca\.crt}'|base64 -d > ca.crt
+k -n logging get secrets elasticsearch-rest-certs -o jsonpath='{.data.tls\.crt}'|base64 -d > tls.crt
+k -n logging get secrets elasticsearch-rest-certs -o jsonpath='{.data.tls\.key}'|base64 -d > tls.key
+
+# cat <<EOF>> ca.crt
+
+# cat <<EOF>> tls.crt
+
+# cat <<EOF>> tls.key
+
+# curl -v --cacert ca.crt --cert tls.crt --key tls.key https://elasticsearch:9200
+``` -->
+
 ## Change `custom-values.yaml`
 
 ### `extraVolumes` and `extraVolumeMounts`
@@ -34,7 +52,8 @@ extraVolumes:
       path: elk-rest-crt.pem
     - key: tls.key
       path: elk-rest-key.pem
-    - key: tls.crt
+    # - key: tls.crt
+    - key: ca.crt
       path: elk-rest-root-ca.pem
 
 extraVolumeMounts:
@@ -128,7 +147,3 @@ helm upgrade fluent-bit fluent/fluent-bit \
   --values=custom-values.yaml \
   > install_fluent-bit.log
 ```
-
-k -n elasticsearch get secrets elasticsearch-rest-certs -o jsonpath='{.data.tls\.crt}'|base64 -d > tls.crt
-k -n elasticsearch get secrets elasticsearch-rest-certs -o jsonpath='{.data.ca\.crt}'|base64 -d > ca.crt
-k -n elasticsearch get secrets elasticsearch-rest-certs -o jsonpath='{.data.tls\.key}'|base64 -d > tls.key 
