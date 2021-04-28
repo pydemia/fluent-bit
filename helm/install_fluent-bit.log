@@ -1,3 +1,22 @@
+Error from server (AlreadyExists): namespaces "logging" already exists
+logging exists. installing in [logging]...
+Error from server (AlreadyExists): secrets "es-cred" already exists
+secret [es-cred] in logging exists. Skipping...
+Error from server (NotFound): namespaces "fluent-bit" not found
+Error from server (NotFound): namespaces "fluent-bit" not found
+Error from server (NotFound): namespaces "fluent-bit" not found
+secret/fluent-bit-es-rest-cert unchanged
+"fluent" already exists with the same configuration, skipping
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "nginx-stable" chart repository
+...Successfully got an update from the "kubernetes-dashboard" chart repository
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "fluent" chart repository
+...Successfully got an update from the "elastic" chart repository
+...Successfully got an update from the "jetstack" chart repository
+...Successfully got an update from the "stable" chart repository
+...Successfully got an update from the "bitnami" chart repository
+Update Complete. ⎈Happy Helming!⎈
 NAME: fluent-bit
 LAST DEPLOYED: Tue Apr  6 04:56:42 2021
 NAMESPACE: logging
@@ -9,3 +28,4 @@ Get Fluent Bit build information by running these commands:
 export POD_NAME=$(kubectl get pods --namespace logging -l "app.kubernetes.io/name=fluent-bit,app.kubernetes.io/instance=fluent-bit" -o jsonpath="{.items[0].metadata.name}")
 echo "curl http://127.0.0.1:2020 for Fluent Bit build information"
 kubectl --namespace logging port-forward $POD_NAME 2020:2020
+service/elasticsearch configured
