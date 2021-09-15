@@ -20,6 +20,21 @@ data:
 EOF
 ```
 
+```bash
+kubectl -n ${NAMESPACE} apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elasticsearch-rest-certs
+  namespace: logging
+type: kubernetes.io/tls
+stringData:
+  ca.crt: "$(cat ca.crt)"
+  tls.crt: "$(cat tls.crt)"
+  tls.key: "$(cat tls.key)"
+EOF
+```
+
 <!-- ```bash
 k -n elasticsearch get secrets elasticsearch-rest-certs -o jsonpath='{.data.ca\.crt}'|base64 -d > ca.crt
 k -n elasticsearch get secrets elasticsearch-rest-certs -o jsonpath='{.data.tls\.crt}'|base64 -d > tls.crt

@@ -19,8 +19,29 @@ kubectl create secret generic es-cred \
 helm install fluent-bit fluent/fluent-bit \
   --namespace ${NAMESPACE} \
   --values=custom-values.yaml \
-  > install_fluent-bit.log  #  > 2>&1
+  > install_fluent-bit.log # > 2>&1
 
+helm upgrade fluent-bit fluent/fluent-bit \
+  --namespace ${NAMESPACE} \
+  --values=custom-values.yaml \
+  > upgrade_fluent-bit.log # > 2>&1
+k -n ${NAMESPACE} rollout restart daemonset fluent-bit
+
+```
+
+```bash
+NAMESPACE="logging"
+ENV_NAME="dev"
+helm install fluent-bit fluent/fluent-bit \
+  --namespace ${NAMESPACE} \
+  --values=values-${ENV_NAME}.yaml \
+  > install_fluent-bit.log # > 2>&1
+
+helm upgrade fluent-bit fluent/fluent-bit \
+  --namespace ${NAMESPACE} \
+  --values=values-${ENV_NAME}.yaml \
+  > upgrade_fluent-bit.log # > 2>&1
+k -n ${NAMESPACE} rollout restart daemonset fluent-bit
 ```
 
 ## Set ExternalName for `fluent-bit`
@@ -34,7 +55,8 @@ metadata:
 spec:
   type: ExternalName
   # externalName: elasticsearch-opendistro-es-data-svc.elasticsearch.svc.cluster.local
-  externalName: elasticsearch-opendistro-es-client-service.elasticsearch.svc.cluster.local
+  # externalName: elasticsearch-opendistro-es-client-service.elasticsearch.svc.cluster.local
+  externalName:  34.133.190.18
   ports:
   - port: 9200
     targetPort: 9200

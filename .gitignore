@@ -1,3 +1,5 @@
+**/cluster-envs/**
+
 ca.crt
 tls.crt
 tls.key

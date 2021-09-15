@@ -12,7 +12,9 @@ replicaCount: 1
 image:
   repository: fluent/fluent-bit
   pullPolicy: Always
-  # tag:
+  # See: https://github.com/fluent/fluent-bit/issues/2522
+  # To Add Kubernetes Fields -> fluentbit 2.3.1 (fluent/fluent-bit 1.4.2)
+  tag: 1.8
 
 testFramework:
   image:
@@ -131,8 +133,10 @@ priorityClassName: ""
 
 # env: []
 env:
+  - name: FLUENT_CLUSTER_NAME
+    value: aiip-dev
   - name: FLUENT_ELASTICSEARCH_HOST
-    value: "es.airuntime.com"
+    value: "elasticsearch"
   - name: FLUENT_ELASTICSEARCH_PORT
     value: "443"
   - name: ELASTICSEARCH_USERNAME
@@ -236,70 +240,95 @@ config:
     # spring-multiline: airuntime,aiip-runtime
     [INPUT]
         Name               tail
-        Tag                kube.aiip-runtime.*
+        Alias              runtime-apps
+        Tag                kube_runtime-apps.*
         Path               /var/log/containers/*_aiip-runtime_*.log
         Parser             docker
         Docker_Mode        On
         Docker_Mode_Parser spring-multiline
-    
-    # # runtime-managed-namespaces: inferenceServices
-    # [INPUT]
-    #     Name               tail
-    #     Tag                kube.runtime-*
-    #     Path               /var/log/containers/*_runtime-*.log
-    #     Parser             docker
-    #     Docker_Mode        On
-    #     Docker_Mode_Parser spring-multiline
-    #     Mem_Buf_Limit      5MB
-    #     # Skip_Long_Lines    Off
-        
-    
+
+    # runtime-managed-namespaces: inferenceServices
+    [INPUT]
+        Name               tail
+        Alias              runtime-endpoints
+        Tag                kube_runtime-endpoints.*
+        Path               /var/log/containers/*_*-r-*_*.log
+        Parser             docker
+        Docker_Mode        On
+        Docker_Mode_Parser kfserving-multiline
+
     # runtime-managed-namespaces: tekton pipelines
     [INPUT]
         Name               tail
-        Tag                kube.runtime-build-space.*
+        Alias              runtime-build-space
+        Tag                kube_runtime-build-space.*
         Path               /var/log/containers/*_runtime-build-space_*.log
         Parser             docker
-        Docker_Mode        On
-        Docker_Mode_Parser spring-multiline
-        Mem_Buf_Limit      5MB
-        # Skip_Long_Lines    Off
 
     # default
     [INPUT]
         Name               tail
-        Tag                kube.*
+        Alias              runtime-cluster
+        Tag                kube_runtime-cluster.*
         Path               /var/log/containers/*.log
-        Exclude_Path       /var/log/containers/*_kube-system_*.log
-        # Exclude_Path       /var/log/containers/*_aiip-runtime_*.log,/var/log/containers/*_runtime-*.log
+        Exclude_Path       /var/log/containers/*_kube-system_*.log,/var/log/containers/*_aiip-runtime_*.log,/var/log/containers/*_*-r-*_*.log,/var/log/containers/*_runtime-build-space_*.log
         Parser             docker
-        Mem_Buf_Limit      5MB
-        Skip_Long_Lines    Off
+
 
   ## https://docs.fluentbit.io/manual/pipeline/filters
   ## https://docs.fluentbit.io/manual/v/1.0/filter/kubernetes
   filters: |
     [FILTER]
         Name                kubernetes
-        Match               kube.*
+        Match               kube_runtime-apps.*
         Kube_URL            https://kubernetes.default.svc:443
         Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
-        Kube_Tag_Prefix     kube.var.log.containers.
-        # Merge_Log is not active when Docker_Mode is On cause Input is not JSON Map
+        Kube_Tag_Prefix     kube_runtime-apps.var.log.containers.
         Merge_Log           On
         Merge_Log_Key       log_processed
-        Merge_Log_Trim      On
-        K8S-Logging.Parser  On
-        K8S-Logging.Exclude Off
-        Labels              On
-        Annotations         On
+    
+    [FILTER]
+        Name                kubernetes
+        Match               kube_runtime-endpoints.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube_runtime-endpoints.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Key       log_processed
+    
+    [FILTER]
+        Name                kubernetes
+        Match               kube_runtime-build-space.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube_runtime-build-space.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Key       log_processed
+
+    [FILTER]
+        Name                kubernetes
+        Match               kube_runtime-cluster.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube_runtime-cluster.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Key       log_processed
+
+    [FILTER]
+        Name modify
+        Match *
+        Add   kubernetes.cluster_name ${FLUENT_CLUSTER_NAME}
+        Copy  kubernetes.host         kubernetes.node_name
 
   ## https://docs.fluentbit.io/manual/pipeline/outputs
   outputs: |
     [OUTPUT]
         Name                es
-        Match               kube.aiip-runtime.*
+        Match               kube_runtime-apps.*
         Host                ${FLUENT_ELASTICSEARCH_HOST}
         Port                ${FLUENT_ELASTICSEARCH_PORT}
         HTTP_User           ${ELASTICSEARCH_USERNAME}
@@ -307,12 +336,11 @@ config:
         Index               fluent-bit
         Type                _doc
         Logstash_Format     On
-        Logstash_Prefix     aiip-runtime
-        # Logstash_Prefix_Key aiip-runtime
+        Logstash_Prefix     runtime-apps
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        Replace_Dots        On
+        # Replace_Dots        On
         Retry_Limit         False
         tls                 On
         tls.verify          Off
@@ -320,10 +348,33 @@ config:
         # tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
         # tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
         # tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
-    
+
     [OUTPUT]
         Name                es
-        Match               kube.runtime-build-space.*
+        Match               kube_runtime-endpoints.*
+        Host                ${FLUENT_ELASTICSEARCH_HOST}
+        Port                ${FLUENT_ELASTICSEARCH_PORT}
+        HTTP_User           ${ELASTICSEARCH_USERNAME}
+        HTTP_Passwd         ${ELASTICSEARCH_PASSWORD}
+        Index               fluent-bit
+        Type                _doc
+        Logstash_Format     On
+        Logstash_Prefix     runtime-endpoints
+        Logstash_DateFormat %Y.%m.%d
+        Time_Key            @timestamp
+        Time_Key_Format     %Y-%m-%dT%H:%M:%S
+        # Replace_Dots        On
+        Retry_Limit         False
+        tls                 On
+        tls.verify          Off
+        tls.debug           1
+        # tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
+        # tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
+        # tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
+
+    [OUTPUT]
+        Name                es
+        Match               kube_runtime-build-space.*
         Host                ${FLUENT_ELASTICSEARCH_HOST}
         Port                ${FLUENT_ELASTICSEARCH_PORT}
         HTTP_User           ${ELASTICSEARCH_USERNAME}
@@ -332,11 +383,10 @@ config:
         Type                _doc
         Logstash_Format     On
         Logstash_Prefix     runtime-build-space
-        # Logstash_Prefix_Key runtime-build-space
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        Replace_Dots        On
+        # Replace_Dots        On
         Retry_Limit         False
         tls                 On
         tls.verify          Off
@@ -344,10 +394,10 @@ config:
         # tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
         # tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
         # tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
-    
+
     [OUTPUT]
         Name                es
-        Match_Regex         kube\.(?~aiip-runtime|runtime-build-space)\.*
+        Match               kube_runtime-cluster.*
         Host                ${FLUENT_ELASTICSEARCH_HOST}
         Port                ${FLUENT_ELASTICSEARCH_PORT}
         HTTP_User           ${ELASTICSEARCH_USERNAME}
@@ -355,11 +405,11 @@ config:
         Index               fluent-bit
         Type                _doc
         Logstash_Format     On
-        Logstash_Prefix     clusterdev
+        Logstash_Prefix     runtime-cluster
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        Replace_Dots        On
+        # Replace_Dots        On
         Retry_Limit         False
         tls                 On
         tls.verify          Off
@@ -367,22 +417,36 @@ config:
         # tls.ca_file         /usr/share/elasticsearch/config/elk-rest-root-ca.pem
         # tls.crt_file        /usr/share/elasticsearch/config/elk-rest-crt.pem
         # tls.key_file        /usr/share/elasticsearch/config/elk-rest-key.pem
-        
-        # Logstash_Prefix_Key $record['kubernetes']['namespace_name']
-        # Logstash_Prefix_Key $kubernetes['labels']['app']
 
   ## https://docs.fluentbit.io/manual/pipeline/parsers
   ## https://docs.fluentbit.io/manual/v/1.0/parser/regular_expression
   customParsers: |
     [PARSER]
+        Name    kfserving-multiline
+        Format  regex
+        Regex   \[[A-Za-z_]{1} (?<time>\d{6} \d{1,2}:\d{1,2}:\d{1,2}) web:\d{1,6}\] (?<log>.*)
+        Time_Format %y%m%d %H:%M:%S
+        Time_Key time
+    [PARSER]
         Name    spring-multiline
         Format  regex
-        # Regex   /(?<time>\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}) (?<log>{"log":".*"),(?<stream>{"stream":".*"),(?<time>{"time":".*")/
-        # Regex   /(?<time>\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}) (?<log>.*)/
-        # Regex   (?<log>{"log":"\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}.*)$
         Regex   (?<time>\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}.\d{1,6}) (?<log>.*)
         Time_Format %Y-%m-%d %H:%M:%S
         Time_Key time
+    [PARSER]
+        Name    k8s-metadata
+        Format  regex
+        Regex   ^kube-(?<tag>[^_]+)?\_?(?<pod_name>[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)_(?<namespace_name>[^_]+)_(?<container_name>.+)-(?<docker_id>[a-z0-9]{64})\.log$
+
+    [PARSER]
+        Name    kube-custom
+        Format  regex
+        Regex   (?<tag>[^.]+)?\.?(?<pod_name>[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)_(?<namespace_name>[^_]+)_(?<container_name>.+)-(?<docker_id>[a-z0-9]{64})\.log$
+
+    [PARSER]
+        Name    filter-kube-test
+        Format  regex
+        Regex   (?<pod_name>[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)_(?<namespace_name>[^_]+)_(?<container_name>.+)-(?<docker_id>[a-z0-9]{64})\.log$
 
     [PARSER]
         Name    nested-multilines
