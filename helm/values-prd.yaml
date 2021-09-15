@@ -161,29 +161,29 @@ extraPorts: []
 #     protocol: TCP
 #     name: tcp
 
-# extraVolumes: []
-extraVolumes:
-# - name: elasticsearch-transport-certs
+extraVolumes: []
+# extraVolumes:
+# # - name: elasticsearch-transport-certs
+# #   secret:
+# #     secretName: elasticsearch-transport-certs
+# #     items:
+# #     - key: tls.crt
+# #       path: elk-transport-crt.pem
+# #     - key: tls.key
+# #       path: elk-transport-key.pem
+# #     - key: ca.crt
+# #       path: elk-transport-root-ca.pem
+# - name: elasticsearch-rest-certs
 #   secret:
-#     secretName: elasticsearch-transport-certs
+#     secretName: elasticsearch-rest-certs
 #     items:
 #     - key: tls.crt
-#       path: elk-transport-crt.pem
+#       path: elk-rest-crt.pem
 #     - key: tls.key
-#       path: elk-transport-key.pem
+#       path: elk-rest-key.pem
+#     # - key: tls.crt
 #     - key: ca.crt
-#       path: elk-transport-root-ca.pem
-- name: elasticsearch-rest-certs
-  secret:
-    secretName: elasticsearch-rest-certs
-    items:
-    - key: tls.crt
-      path: elk-rest-crt.pem
-    - key: tls.key
-      path: elk-rest-key.pem
-    # - key: tls.crt
-    - key: ca.crt
-      path: elk-rest-root-ca.pem
+#       path: elk-rest-root-ca.pem
 # - name: elasticsearch-admin-certs
 #   secret:
 #     secretName: elasticsearch-admin-certs
@@ -195,14 +195,14 @@ extraVolumes:
 #     - key: ca.crt
 #       path: admin-root-ca.pem
 
-# extraVolumeMounts: []
-extraVolumeMounts:
-# - name: elasticsearch-transport-certs
+extraVolumeMounts: []
+# extraVolumeMounts:
+# # - name: elasticsearch-transport-certs
+# #   mountPath: /usr/share/elasticsearch/config
+# #   readOnly: true
+# - name: elasticsearch-rest-certs
 #   mountPath: /usr/share/elasticsearch/config
 #   readOnly: true
-- name: elasticsearch-rest-certs
-  mountPath: /usr/share/elasticsearch/config
-  readOnly: true
 # - name: elasticsearch-admin-certs
 #   mountPath: /usr/share/elasticsearch/config
 #   readOnly: true
