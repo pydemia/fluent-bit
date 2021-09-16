@@ -287,6 +287,9 @@ config:
         Kube_Tag_Prefix     kube_runtime-apps.var.log.containers.
         Merge_Log           On
         Merge_Log_Key       log_processed
+        Labels              On
+        Annotations         On
+        Buffer_Size         0
     
     [FILTER]
         Name                kubernetes
@@ -297,6 +300,9 @@ config:
         Kube_Tag_Prefix     kube_runtime-endpoints.var.log.containers.
         Merge_Log           On
         Merge_Log_Key       log_processed
+        Labels              On
+        Annotations         On
+        Buffer_Size         0
     
     [FILTER]
         Name                kubernetes
@@ -307,6 +313,9 @@ config:
         Kube_Tag_Prefix     kube_runtime-build-space.var.log.containers.
         Merge_Log           On
         Merge_Log_Key       log_processed
+        Labels              On
+        Annotations         On
+        Buffer_Size         0
 
     [FILTER]
         Name                kubernetes
@@ -317,6 +326,9 @@ config:
         Kube_Tag_Prefix     kube_runtime-cluster.var.log.containers.
         Merge_Log           On
         Merge_Log_Key       log_processed
+        Labels              On
+        Annotations         On
+        Buffer_Size         0
 
     [FILTER]
         Name modify
@@ -325,6 +337,8 @@ config:
         Copy  kubernetes.host         kubernetes.node_name
 
   ## https://docs.fluentbit.io/manual/pipeline/outputs
+  
+  # Use 'Replace_Dots' to avoid '"mapper_parsing_exception': object mapping for [kubernetes.labels.app] tried to parse field [app] as object, but found a concrete value
   outputs: |
     [OUTPUT]
         Name                es
@@ -340,8 +354,11 @@ config:
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        # Replace_Dots        On
+        Generate_ID         On
+        Replace_Dots        On
         Retry_Limit         False
+        Buffer_Size         False
+        Trace_Error         On
         tls                 On
         tls.verify          Off
         tls.debug           1
@@ -363,8 +380,10 @@ config:
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        # Replace_Dots        On
+        Generate_ID         On
+        Replace_Dots        On
         Retry_Limit         False
+        Buffer_Size         False
         tls                 On
         tls.verify          Off
         tls.debug           1
@@ -386,8 +405,11 @@ config:
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        # Replace_Dots        On
+        Generate_ID         On
+        Trace_Error         On
+        Replace_Dots        On
         Retry_Limit         False
+        Buffer_Size         False
         tls                 On
         tls.verify          Off
         tls.debug           1
@@ -409,8 +431,11 @@ config:
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        # Replace_Dots        On
+        Generate_ID         On
+        Trace_Error         On
+        Replace_Dots        On
         Retry_Limit         False
+        Buffer_Size         False
         tls                 On
         tls.verify          Off
         tls.debug           1

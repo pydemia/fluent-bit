@@ -31,7 +31,11 @@ k -n ${NAMESPACE} rollout restart daemonset fluent-bit
 
 ```bash
 NAMESPACE="logging"
-ENV_NAME="dev"
+ENV_NAME="prd"  # "stg", "prd"
+
+# kubectl create namespace ${NAMESPACE}
+kubectl -n ${NAMESPACE} apply -f cluster-envs/${ENV_NAME}
+
 helm install fluent-bit fluent/fluent-bit \
   --namespace ${NAMESPACE} \
   --values=values-${ENV_NAME}.yaml \

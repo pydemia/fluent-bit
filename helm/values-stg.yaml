@@ -110,14 +110,14 @@ readinessProbe:
     path: /
     port: http
 
+# resources: {}
 resources:
-  {}
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
 
 nodeSelector: {}
 
@@ -134,7 +134,7 @@ priorityClassName: ""
 # env: []
 env:
   - name: FLUENT_CLUSTER_NAME
-    value: aiip-stg
+    value: "aiip-stg"
   - name: FLUENT_ELASTICSEARCH_HOST
     value: "elasticsearch"
   - name: FLUENT_ELASTICSEARCH_PORT
@@ -161,29 +161,29 @@ extraPorts: []
 #     protocol: TCP
 #     name: tcp
 
-# extraVolumes: []
-extraVolumes:
-# - name: elasticsearch-transport-certs
+extraVolumes: []
+# extraVolumes:
+# # - name: elasticsearch-transport-certs
+# #   secret:
+# #     secretName: elasticsearch-transport-certs
+# #     items:
+# #     - key: tls.crt
+# #       path: elk-transport-crt.pem
+# #     - key: tls.key
+# #       path: elk-transport-key.pem
+# #     - key: ca.crt
+# #       path: elk-transport-root-ca.pem
+# - name: elasticsearch-rest-certs
 #   secret:
-#     secretName: elasticsearch-transport-certs
+#     secretName: elasticsearch-rest-certs
 #     items:
 #     - key: tls.crt
-#       path: elk-transport-crt.pem
+#       path: elk-rest-crt.pem
 #     - key: tls.key
-#       path: elk-transport-key.pem
+#       path: elk-rest-key.pem
+#     # - key: tls.crt
 #     - key: ca.crt
-#       path: elk-transport-root-ca.pem
-- name: elasticsearch-rest-certs
-  secret:
-    secretName: elasticsearch-rest-certs
-    items:
-    - key: tls.crt
-      path: elk-rest-crt.pem
-    - key: tls.key
-      path: elk-rest-key.pem
-    # - key: tls.crt
-    - key: ca.crt
-      path: elk-rest-root-ca.pem
+#       path: elk-rest-root-ca.pem
 # - name: elasticsearch-admin-certs
 #   secret:
 #     secretName: elasticsearch-admin-certs
@@ -195,17 +195,17 @@ extraVolumes:
 #     - key: ca.crt
 #       path: admin-root-ca.pem
 
-# extraVolumeMounts: []
-extraVolumeMounts:
-# - name: elasticsearch-transport-certs
+extraVolumeMounts: []
+# extraVolumeMounts:
+# # - name: elasticsearch-transport-certs
+# #   mountPath: /usr/share/elasticsearch/config
+# #   readOnly: true
+# - name: elasticsearch-rest-certs
 #   mountPath: /usr/share/elasticsearch/config
 #   readOnly: true
-- name: elasticsearch-rest-certs
-  mountPath: /usr/share/elasticsearch/config
-  readOnly: true
-# - name: elasticsearch-admin-certs
-#   mountPath: /usr/share/elasticsearch/config
-#   readOnly: true
+# # - name: elasticsearch-admin-certs
+# #   mountPath: /usr/share/elasticsearch/config
+# #   readOnly: true
 
 updateStrategy: {}
   # type: RollingUpdate
@@ -287,6 +287,9 @@ config:
         Kube_Tag_Prefix     kube_runtime-apps.var.log.containers.
         Merge_Log           On
         Merge_Log_Key       log_processed
+        Labels              On
+        Annotations         On
+        Buffer_Size         0
     
     [FILTER]
         Name                kubernetes
@@ -297,6 +300,9 @@ config:
         Kube_Tag_Prefix     kube_runtime-endpoints.var.log.containers.
         Merge_Log           On
         Merge_Log_Key       log_processed
+        Labels              On
+        Annotations         On
+        Buffer_Size         0
     
     [FILTER]
         Name                kubernetes
@@ -307,6 +313,9 @@ config:
         Kube_Tag_Prefix     kube_runtime-build-space.var.log.containers.
         Merge_Log           On
         Merge_Log_Key       log_processed
+        Labels              On
+        Annotations         On
+        Buffer_Size         0
 
     [FILTER]
         Name                kubernetes
@@ -317,6 +326,9 @@ config:
         Kube_Tag_Prefix     kube_runtime-cluster.var.log.containers.
         Merge_Log           On
         Merge_Log_Key       log_processed
+        Labels              On
+        Annotations         On
+        Buffer_Size         0
 
     [FILTER]
         Name modify
@@ -325,6 +337,8 @@ config:
         Copy  kubernetes.host         kubernetes.node_name
 
   ## https://docs.fluentbit.io/manual/pipeline/outputs
+  
+  # Use 'Replace_Dots' to avoid '"mapper_parsing_exception': object mapping for [kubernetes.labels.app] tried to parse field [app] as object, but found a concrete value
   outputs: |
     [OUTPUT]
         Name                es
@@ -340,8 +354,11 @@ config:
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        # Replace_Dots        On
+        Generate_ID         On
+        Replace_Dots        On
         Retry_Limit         False
+        Buffer_Size         False
+        Trace_Error         On
         tls                 On
         tls.verify          Off
         tls.debug           1
@@ -363,8 +380,10 @@ config:
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        # Replace_Dots        On
+        Generate_ID         On
+        Replace_Dots        On
         Retry_Limit         False
+        Buffer_Size         False
         tls                 On
         tls.verify          Off
         tls.debug           1
@@ -386,8 +405,11 @@ config:
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        # Replace_Dots        On
+        Generate_ID         On
+        Trace_Error         On
+        Replace_Dots        On
         Retry_Limit         False
+        Buffer_Size         False
         tls                 On
         tls.verify          Off
         tls.debug           1
@@ -409,8 +431,11 @@ config:
         Logstash_DateFormat %Y.%m.%d
         Time_Key            @timestamp
         Time_Key_Format     %Y-%m-%dT%H:%M:%S
-        # Replace_Dots        On
+        Generate_ID         On
+        Trace_Error         On
+        Replace_Dots        On
         Retry_Limit         False
+        Buffer_Size         False
         tls                 On
         tls.verify          Off
         tls.debug           1
