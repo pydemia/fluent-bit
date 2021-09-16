@@ -31,7 +31,7 @@ k -n ${NAMESPACE} rollout restart daemonset fluent-bit
 
 ```bash
 NAMESPACE="logging"
-ENV_NAME="prd"  # "stg", "prd"
+ENV_NAME="dev"  # "dev", "stg", "prd"
 
 # kubectl create namespace ${NAMESPACE}
 kubectl -n ${NAMESPACE} apply -f cluster-envs/${ENV_NAME}
@@ -46,6 +46,8 @@ helm upgrade fluent-bit fluent/fluent-bit \
   --values=values-${ENV_NAME}.yaml \
   > upgrade_fluent-bit.log # > 2>&1
 k -n ${NAMESPACE} rollout restart daemonset fluent-bit
+
+# helm -n ${NAMESPACE} uninstall fluent-bit
 ```
 
 ## Set ExternalName for `fluent-bit`
