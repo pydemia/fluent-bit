@@ -2,6 +2,12 @@
 
 https://docs.fluentbit.io/manual/
 
+## Pre-requisite
+
+```bash
+kind create cluster --name kind-local
+```
+
 ## Installation
 
 ```bash
